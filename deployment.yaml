@@ -1,0 +1,19 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: image-gallery-deployemnt
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: image-gallery
+  template:
+    metadata:
+      labels:
+        app: image-gallery
+    spec:
+      containers:
+      - name: image-gallery
+        image: 528424611315.dkr.ecr.us-east-1.amazonaws.com/image-gallery:latest
+        ports:
+        - containerPort: 80
