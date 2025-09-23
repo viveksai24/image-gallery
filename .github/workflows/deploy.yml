@@ -1,0 +1,51 @@
+name: Deploy to EKS
+
+on:
+  push:
+    branches:
+      - master
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+
+    env:
+      IMAGE_URI: ${{ vars.ECR_REPO }}:${{ vars.IMAGE_TAG }}
+    steps:
+      - name: Checkout actions
+        uses: actions/checkout@v4
+
+      - name: Set up jdk 17
+        uses: actions/setup-java@v4
+        with:
+          java-verison: '17'
+          distribution: 'temurin'
+
+      - name: Build with maven
+        run: mvn clean package-DskipTests
+
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACESS_KEY }}
+          aws-region: ${{ vars.AWS_REGION }}
+
+      - name: Login ECR
+        run: |
+          aws ecr get-login-password --region ${{ vars.AWS_REGION }} \
+          | docker login --username AWS --password-stdin ${{ vars.ECR_REPO }}
+
+      - name: Buildm Tag, and Push Docker image
+        run: |
+          docker build -t image-gallery:${{ vars.IMAGE_TAG }} .
+          docker tag iamge-gallery:${{ vars.IMAGE_TAG }} ${{ env.IMAGE_URI }}
+          docker push ${{ env.IMAGE_URI }}
+      - name: update kubeconfig
+        run: aws eks update-kubeconfig --name ${{ vars.CLUSTER_NAME }} --region ${{ vars.AWS_REGION }}
+
+      - name: Deploy to EKS
+        run: |
+          kubectl set image deployment/image-gallery-deployment \
+            image-gallery=${{ env.IMAGE_URI }} --record
+          kubectl rollout status deployment/image-gallery-deployment
